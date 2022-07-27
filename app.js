@@ -48,7 +48,8 @@ mongoose.connect("mongodb://localhost:27017/sampleUserDB", {
 const userSchema = new mongoose.Schema({
   email: String,
   password: String,
-  googleId:String
+  googleId:String,
+  secret: String
 });
 
 userSchema.plugin(passportLocalMongoose);
@@ -78,7 +79,7 @@ passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
     clientSecret:process.env.CLIENT_SECRET,
     callbackURL: "http://localhost:3000/auth/google/secrets",
-    userProfileURL:"http://www.googleapis.com/oauth2/v3/userinfo"
+    userProfileURL:"https://www.googleapis.com/oauth2/v3/userinfo"
   },
   function(accessToken, refreshToken, profile, cb) {
     console.log(profile);
@@ -93,7 +94,7 @@ app.get("/", function(req, res) {
 });
 
 //this line of code will take the user to select google account page when clicked on login with google button
-app.get("/auth/google",passport.authenticate("google", { scope: ["profile"] }));
+app.get("/auth/google",passport.authenticate("google", { scope: ["profile","email"] }));
 
 app.get("/auth/google/secrets",
   passport.authenticate("google", { failureRedirect: "/login" }),
@@ -111,11 +112,39 @@ app.get("/register", function(req, res) {
 });
 
 app.get("/secrets",function(req,res){
+  // if(req.isAuthenticated()){
+  //   res.render("secrets");
+  // }else{
+  //   res.redirect("login");
+  // }
+  User.find({"secret":{$ne: null}},function(err,foundUsers){
+    console.log(foundUsers);
+    if(!err && foundUsers){
+      res.render("secrets",{userWithSecrets:foundUsers});
+    }
+  });
+});
+
+app.get("/submit",function(req,res){
   if(req.isAuthenticated()){
-    res.render("secrets");
+    res.render("submit");
   }else{
     res.redirect("login");
   }
+});
+
+app.post("/submit",function(req,res){
+  const submittedSecret=req.body.secret;
+  console.log(req.user.id);
+  User.findById(req.user.id,function(err,foundUser){
+    if(!err && foundUser){
+      foundUser.secret=submittedSecret;
+      foundUser.save(function(){
+        console.log("add to db the secret of a respective user.");
+        res.redirect("/secrets")
+      });
+    }
+  });
 });
 
 app.get("/logout",function(req,res){
